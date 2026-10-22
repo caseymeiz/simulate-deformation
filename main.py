@@ -33,19 +33,14 @@ def arguments(argv=None):
     parser.add_argument("--min-force-patches", type=int, choices=[1, 2, 3], default=1)
     parser.add_argument("--youngs-modulus", type=float, help="Pa; otherwise sampled from 500–5000 Pa")
     parser.add_argument("--poisson-ratio", type=float, default=0.35)
-    parser.add_argument("--template", choices=["cg"], default="cg", help=argparse.SUPPRESS)
     parser.add_argument("--fixed-area-scale", type=float, default=FIXED_AREA_SCALE)
     parser.add_argument("--force-radius-max", type=float, default=FORCE_RADIUS_MAX,
                         help="Maximum sampled force-patch radius in metres; minimum is 0.01")
     parser.add_argument("--fixed-margin", type=float, default=FIXED_MARGIN,
                         help="Fixed-to-force patch clearance in metres; 0 disables clearance")
-    parser.add_argument("--no-line-search", dest="line_search", action="store_false",
-                        default=False, help=argparse.SUPPRESS)
     parser.add_argument("--relaxation-factor", type=float, default=.1,
                         help="Multiplier for each nonlinear displacement update")
     parser.add_argument("--nonlinear-max-iterations", type=int, default=100)
-    parser.add_argument("--divergence-retries", type=int, choices=[0], default=0,
-                        help=argparse.SUPPRESS)
     parser.add_argument("--prepare-only", action="store_true", help="Write inputs without running Elmer")
     parser.add_argument("--solver", default="ElmerSolver", help="Executable name or absolute path")
     return parser.parse_args(argv)
@@ -137,10 +132,7 @@ def solve(args, source, tetra, manifest):
         outcome["status"] = "not_converged"
         if change is not None and np.isfinite(change) and change < nonlinear_tolerance:
             outcome.update(save_result(args, source, tetra))
-    manifest.update(outcome, elapsed_seconds=elapsed,
-                    final_relaxation_factor=args.relaxation_factor,
-                    attempts=[dict(attempt=1, relaxation_factor=args.relaxation_factor,
-                                   elapsed_seconds=elapsed, **outcome)])
+    manifest.update(outcome, elapsed_seconds=elapsed)
     (args.output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
 
 
@@ -153,7 +145,6 @@ def main():
         "created_at": datetime.now(timezone.utc).isoformat(), "argv": sys.argv[1:],
         "input_mesh": str(args.mesh.resolve()), "output": str(args.output.resolve()),
         "settings": {key: value for key, value in vars(args).items() if not isinstance(value, Path)},
-        "retry_policy": "none",
         "input_mesh_units": "m", "simulation_units": "m", "deformed_mesh_units": "m",
         "status": "prepared",
     }

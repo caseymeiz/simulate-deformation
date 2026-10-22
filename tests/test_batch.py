@@ -10,23 +10,22 @@ from batch import arguments, make_jobs, rigid_metrics, save_report
 
 class ReportTests(unittest.TestCase):
     def test_failure_counts_and_successful_tre(self):
-        reasons = [None, "line search failed", "line search failed", "not_converged"]
+        reasons = [None, "solver diverged", "solver diverged", "not_converged"]
         rows = [{"sample": str(index),
                  "status": "success" if reason is None else "solver_failed",
                  "failure_reason": reason, "solve_seconds": 10.,
-                 "solver_attempts": 2,
                  "sample_seconds": 11., "mean_tre_mm": 2. if reason is None else None}
                 for index, reason in enumerate(reasons)]
         with TemporaryDirectory() as directory:
             summary = save_report(Path(directory), rows, 30.)
             saved = json.loads((Path(directory) / "summary.json").read_text())
         self.assertEqual(saved, summary)
-        self.assertEqual(summary["completed_attempts"], 4)
-        self.assertEqual(summary["total_solver_attempts"], 8)
+        self.assertEqual(summary["completed_samples"], 4)
+        self.assertEqual(summary["total_solves"], 4)
         self.assertEqual(summary["successful_samples"], 1)
         self.assertEqual(summary["failed_samples"], 3)
         self.assertEqual(summary["failure_reason_counts"],
-                         {"line search failed": 2, "not_converged": 1})
+                         {"solver diverged": 2, "not_converged": 1})
         self.assertEqual(summary["mean_tre_mm"], 2.)
 
 
@@ -74,9 +73,6 @@ class PresetTests(unittest.TestCase):
                     self.assertEqual(args.input_scale, .001)
                     self.assertEqual(args.force_factor, 3.)
                     self.assertEqual(args.fixed_area_scale, 2.)
-                    self.assertFalse(args.line_search)
-                    self.assertEqual(args.divergence_retries, 0)
-                    self.assertEqual(args.template, "cg")
 
     def test_explicit_options_override_preset(self):
         args = arguments(["input", "output", "--seed", "7", "--preset", "all131_20",

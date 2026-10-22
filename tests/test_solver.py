@@ -63,8 +63,5 @@ class SolverTests(unittest.TestCase):
             with self.subTest(outcome=outcome):
                 output, manifest, factors = self.run_case(outcome)
                 self.assertEqual(factors, [.2])
-                self.assertEqual(manifest["final_relaxation_factor"], .2)
-                self.assertEqual(len(manifest["attempts"]), 1)
                 self.assertEqual(manifest["status"],
                                  "solver_failed" if outcome in ("divergence", "iteration_limit") else outcome)
-                self.assertFalse((output / "attempts").exists())

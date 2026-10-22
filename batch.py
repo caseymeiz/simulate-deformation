@@ -64,10 +64,8 @@ def run_sample(job, args):
                str(mesh_path), str(case), "--seed", str(job["seed"]),
                "--force-factor", str(args.force_factor),
                "--poisson-ratio", str(args.poisson_ratio),
-               "--template", args.template,
                "--relaxation-factor", str(args.relaxation_factor),
                "--nonlinear-max-iterations", str(args.nonlinear_max_iterations),
-               "--divergence-retries", str(args.divergence_retries),
                "--fixed-area-scale", str(args.fixed_area_scale),
                "--force-radius-max", str(args.force_radius_max),
                "--fixed-margin", str(args.fixed_margin),
@@ -77,12 +75,9 @@ def run_sample(job, args):
     row = {**job, "status": "invocation_failed", "returncode": result.returncode,
            "failure_reason": "invocation_failed",
            "force_factor": args.force_factor, "poisson_ratio": args.poisson_ratio,
-           "template": args.template,
            "relaxation_factor": args.relaxation_factor,
            "nonlinear_max_iterations": args.nonlinear_max_iterations,
-           "divergence_retries": args.divergence_retries,
-           "solver_attempts": 0, "final_relaxation_factor": None,
-           "fixed_area_scale": args.fixed_area_scale, "line_search": args.line_search,
+           "fixed_area_scale": args.fixed_area_scale,
            "fixed_margin": args.fixed_margin,
            "force_radius_max": args.force_radius_max,
            "youngs_modulus_pa": None,
@@ -92,8 +87,6 @@ def run_sample(job, args):
     if manifest_path.exists():
         manifest = json.loads(manifest_path.read_text())
         row.update(status=manifest["status"],
-                   solver_attempts=len(manifest.get("attempts", [])),
-                   final_relaxation_factor=manifest.get("final_relaxation_factor"),
                    youngs_modulus_pa=manifest["settings"].get("youngs_modulus"),
                    force_patches=len(manifest["tractions"]) if "tractions" in manifest else None,
                    solve_seconds=manifest.get("elapsed_seconds"))
@@ -117,16 +110,15 @@ def save_report(output, rows, elapsed):
     def mean(group, key):
         return float(np.mean([row[key] for row in group])) if group else None
     summary = {
-        "completed_attempts": len(rows), "successful_samples": len(successful),
-        "total_solver_attempts": sum(row.get("solver_attempts", int(row["solve_seconds"] is not None))
-                                     for row in rows),
+        "completed_samples": len(rows), "successful_samples": len(successful),
+        "total_solves": len(solved),
         "failed_samples": len(rows) - len(successful),
         "status_counts": dict(Counter(row["status"] for row in rows)),
         "failure_reason_counts": dict(Counter(
             row["failure_reason"] for row in rows if row["status"] != "success")),
         "mean_successful_solve_seconds": mean(successful, "solve_seconds"),
         "mean_successful_sample_seconds": mean(successful, "sample_seconds"),
-        "mean_all_solver_attempt_seconds": mean(solved, "solve_seconds"),
+        "mean_all_solve_seconds": mean(solved, "solve_seconds"),
         "mean_tre_mm": mean(successful, "mean_tre_mm"),
         "batch_wall_seconds": elapsed,
         "tre_definition": "Equal-weight mean of successful samples' mean Euclidean node errors after least-squares rigid fitting; all corresponding volume nodes; no scaling or reflection.",
@@ -153,19 +145,14 @@ def arguments(argv=None):
     parser.add_argument("--seed", type=int, default=20260916)
     parser.add_argument("--force-factor", type=float, default=1.5)
     parser.add_argument("--poisson-ratio", type=float, default=0.35)
-    parser.add_argument("--template", choices=["cg"], default="cg", help=argparse.SUPPRESS)
     parser.add_argument("--fixed-area-scale", type=float, default=FIXED_AREA_SCALE)
     parser.add_argument("--force-radius-max", type=float, default=FORCE_RADIUS_MAX,
                         help="Maximum sampled force-patch radius in metres; minimum is 0.01")
     parser.add_argument("--fixed-margin", type=float, default=FIXED_MARGIN,
                         help="Fixed-to-force patch clearance in metres; 0 disables clearance")
-    parser.add_argument("--no-line-search", dest="line_search", action="store_false",
-                        default=False, help=argparse.SUPPRESS)
     parser.add_argument("--relaxation-factor", type=float, default=.1,
                         help="Multiplier for each nonlinear displacement update")
     parser.add_argument("--nonlinear-max-iterations", type=int, default=100)
-    parser.add_argument("--divergence-retries", type=int, choices=[0], default=0,
-                        help=argparse.SUPPRESS)
     parser.add_argument("--min-force-patches", type=int, choices=[1, 2, 3], default=2)
     parser.add_argument("--input-scale", type=float, default=1., help="Coordinate multiplier to metres; use 0.001 for mm")
     parser.add_argument("--workers", type=int, default=8)
@@ -183,7 +170,7 @@ def arguments(argv=None):
 
 
 def make_jobs(args):
-    """Preserve sorted mesh order and the original per-attempt seed sequence."""
+    """Preserve sorted mesh order and the original per-sample seed sequence."""
     rng = random.Random(args.seed)
     meshes = sorted(args.input.glob(args.pattern))
     if args.deformations_per_liver is None:
@@ -201,8 +188,7 @@ def main():
     args.output.mkdir(parents=True)
     jobs = make_jobs(args)
     manifest = {"argv": sys.argv[1:], "settings": {k: str(v) if isinstance(v, Path) else v
-                for k, v in vars(args).items()}, "jobs": jobs,
-                "retry_policy": "none"}
+                for k, v in vars(args).items()}, "jobs": jobs}
     (args.output / "batch_manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     for name in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
         os.environ[name] = "1"
