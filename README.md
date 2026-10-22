@@ -16,7 +16,17 @@ The input mesh is included at
 It is the undeformed liver 0 tetrahedral mesh from MSD-RIT Task03_Liver,
 already converted to metres. No separate mesh download or conversion is needed.
 
-Install [Pixi](https://pixi.sh), then run these commands from the repository root:
+Install [Pixi](https://pixi.sh):
+
+```bash
+curl -fsSL https://pixi.sh/install.sh | sh
+```
+
+Then run these commands from the repository root:
+
+> **Runtime:** The sample deformation took about **12 minutes** (717 seconds)
+> in a recorded run, excluding installation and the Elmer build. Runtime depends
+> on your CPU and system load. Monitor progress with `tail -f outputs/example/solver.log`.
 
 ```bash
 pixi install --locked
