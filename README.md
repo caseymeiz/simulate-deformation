@@ -68,13 +68,19 @@ Render the result:
 pixi run -e visualization visualize outputs/liver/deformed.vtk
 ```
 
-`visualize.py` shows the original liver as a translucent grey surface, with
+`visualize.py` produces two panels with the same camera. The left panel shows
+the original mesh with the fixed patch in black and each force patch in a
+different color. The right panel shows a translucent grey original surface with
 arrows starting at sampled surface vertices. Arrow directions and lengths show
 their displacements; colors show displacement magnitude in millimetres.
 The original coordinates are recovered as `deformed coordinates - displacement`.
 At the default arrow scale of 1, each arrow tip reaches its deformed position.
 
-The script saves `displacement.png` and `displacement.pvsm` beside the input mesh.
+The script reads `mesh.boundary` and `mesh.nodes` beside the deformed mesh; use
+`--boundary /path/to/mesh.boundary` to specify another location.
+It saves `displacement.png`, `displacement.pvsm`, and a labeled surface
+`displacement_boundaries.vtk` beside the input mesh. Keep the labeled surface
+with the state file so the patch panel can be reopened.
 Open the state with ParaView's **File → Load State** to rotate the scene and
 adjust its display. On a machine with a graphical display, you can also run:
 
@@ -110,10 +116,11 @@ pixi run -e visualization visualize outputs/example/deformed.vtk \
   --glyph-scale 1 --max-glyphs 1000 --output outputs/example/displacement.png
 ```
 
-![Original liver surface with displacement arrows colored by magnitude in millimetres](examples/liver_displacement.png)
+![Original liver mesh with black fixed and colored force patches on the left, and displacement arrows on the right](examples/liver_displacement.png)
 
-Grey shows the original surface. Each arrow starts on that surface and ends at
-its displaced position; the color bar gives displacement magnitude in millimetres.
+Left: the original mesh, fixed patch in black, and individually colored force
+patches. Right: each arrow starts on the original surface and ends at its
+displaced position; the color bar gives displacement magnitude in millimetres.
 
 ## Tests and attribution
 
