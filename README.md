@@ -1,130 +1,122 @@
-# Liver deformation batches
+# Liver deformation
 
-Generate neo-Hookean liver deformations with Elmer from tetrahedral meshes.
+Generate a neo-Hookean deformation of one tetrahedral liver mesh with Elmer,
+then visualize the displacement in ParaView.
 
 ## Setup
 
-The CPU environment includes Python 3.12, NumPy, VTK, and Elmer 26.2.1.
-Supply your own mesh dataset.
-
-Install [Pixi](https://pixi.sh), then from this repository:
+Install [Pixi](https://pixi.sh), then run:
 
 ```bash
 pixi install --locked
 pixi run install-elmer
-pixi run test
 ```
 
-The installer builds the pinned Elmer commit
-`a19504ac53ec222e3355e182b08f2ff280c2203a` into `.elmer/`, using eight build jobs
-by default (`ELMER_BUILD_JOBS` overrides this), with the Pixi C/C++/Fortran
-compilers and the `ElasticSolve` and `ResultOutputSolve` modules used by this project. The first installation downloads
-Conda packages and Elmer source. `pixi.lock` fixes the environment versions.
+The repository supplies its own Python environment and builds Elmer 26.2.1
+locally. The first installation downloads the dependencies and Elmer source.
 
-## Batch presets
+## Deform a liver
 
-Run from the repository root:
+Use a linear tetrahedral `.vtk` or `.vtu` mesh with coordinates **in metres**.
+Convert millimetre coordinates to metres before running; `main.py` does not
+convert units. Choose a new output directory for each simulation.
 
 ```bash
-# Liver 18: 1,200 attempts.
-pixi run liver18-1200
-
-# All 131 livers: 20 attempts each, 2,620 total.
-pixi run all131-20
+pixi run case /path/to/liver.vtk outputs/liver \
+  --seed 1 --force-factor 1.5 --youngs-modulus 3000
 ```
 
-The wrapper defaults to `all131_20`. Each invocation creates a new UTC-timestamped
-`batch_...` directory under
-`/shared/users/cjm6121/hybrid/MSD-RIT/Task03_Liver_NeoHookean/`.
-Inputs come from `/shared/users/cjm6121/hybrid/MSD-RIT/Task03_Liver`.
+This samples a fixed surface patch and loading patches, writes the Elmer inputs,
+and runs the solver. A successful solve writes `outputs/liver/deformed.vtk`,
+containing the deformed coordinates and the `displacement` point-vector array,
+both in metres.
 
-| Setting | `liver18_1200` | `all131_20` |
-|---|---|---|
-| Mesh pattern | `liver_18_hcp_tet4.vtk` | `*_hcp_tet4.vtk` |
-| Attempts per liver | 1,200 | 20 |
-| Batch seed | 20261004 | 20261015 |
-| Relaxation factor | 0.1 | 0.05 |
-| Maximum nonlinear iterations | 100 | 200 |
+Useful options:
 
-Both presets use CG/Cholesky2 with fixed nonlinear relaxation.
-Failed attempts count toward the requested total and are not retried or replaced.
-
-Both presets use 8 workers, input scale 0.001 (mm to m), force factor 3,
-Poisson ratio 0.35, 2–3 force patches, fixed-area scale 2, fixed margin 0.02 m,
-and maximum force-patch radius 0.07 m. Young's modulus is sampled from 500–5000 Pa.
-The all-liver preset processes every matching mesh; reproducing 131 livers requires
-the original input set. Meshes are sorted by path, and the batch seed determines
-each attempt's seed. Explicit CLI options override preset values.
-
-To choose input and output directories:
-
-```bash
-pixi run python \
-  batch.py /path/to/meshes /path/to/new-batch \
-  --preset all131_20 --workers 8
-```
-
-Historical launch records are available in `docs/launches/`; their paths refer
-to the original repository.
-
-## Files
-
-| File | Purpose |
+| Option | Meaning |
 |---|---|
-| `generate_msd.sh` | Shared-dataset launcher with a fresh output directory |
-| `batch.py` | Presets, job seeds, worker pool, rigid TRE and reports |
-| `main.py` | Prepare and solve one deformation; validate and export results |
-| `boundaries.py` | Connected fixed/loading patches and clearance |
-| `elmer_mesh.py` | Native Elmer mesh writer |
-| `mesh_utils.py` | Surface extraction, geometry checks and VTK output |
-| `case.sif.template` | CG/Cholesky2 neo-Hookean solver settings |
-| `boundary_to_vtk.py` | Optional labeled surface export for inspection |
-| `test_*.py` | Sampling, batch and solver checks |
-| `pixi.toml`, `pixi.lock` | Environment and task definitions |
-| `scripts/install_elmer.sh` | Pinned local Elmer build |
-| `docs/` | Historical method write-up and PDF; solver settings and commands differ from this project |
+| `--seed 1` | Reproduce the sampled patches, loads, and material draw |
+| `--force-factor 1.5` | Scale the sampled forces; this is not a prescribed displacement |
+| `--youngs-modulus 3000` | Young's modulus in Pa; otherwise sampled from 500–5000 Pa |
+| `--poisson-ratio 0.35` | Material Poisson ratio |
+| `--min-force-patches 2` | Sample 2–3 loading patches |
+| `--fixed-margin 0.02` | Minimum clearance between fixed and loading patches, in metres |
+| `--relaxation-factor 0.1` | Nonlinear solver step multiplier |
+| `--nonlinear-max-iterations 200` | Maximum nonlinear solver iterations |
+| `--prepare-only` | Write the mesh and solver inputs without solving |
 
-The target-area and force distributions derive from Volume2SurfaceCNN;
-`VOLUME2SURFACECNN_LICENSE.txt` retains its license.
+Run `pixi run case --help` for all options. Keeping the mesh, seed, and sampling
+settings fixed while changing the force factor preserves the patches and force
+directions. The solver uses CG/Cholesky2 without line search or retries.
 
-## Outputs
+The output directory also contains `manifest.json` with the sampled settings
+and status, `solver.log`, `case.sif`, the native Elmer mesh files, and raw results
+under `result/`. A failed preparation or solve is recorded in the manifest.
+`deformed.vtk` is written only after convergence and geometry checks pass.
 
-`batch_manifest.json` records settings, source meshes and seeds. Each attempt saves
-`reference.vtk` in metres, a `simulation/` directory containing the native Elmer
-mesh, `case.sif`, `solver.log`, and `manifest.json`, plus `metrics.json`.
-Successful cases also save `simulation/deformed.vtk` and `rigid_registration.json`.
-`results.csv` and `summary.json` update as attempts finish, including failures,
-solve times and rigid TRE in millimetres. TRE uses all corresponding volume nodes
-after a least-squares rotation and translation, without scaling or reflection.
+## Visualize displacement
 
-Exported coordinates are already deformed. The exporter preserves input mesh
-arrays and adds a displacement array. Success requires solver convergence,
-finite geometry and no inverted tetrahedra.
-
-## Single case and inspection
-
-`main.py` accepts a linear tetrahedral VTK/VTU mesh already in metres and a new
-output directory. For example, using the single-liver batch's solver settings:
+Install the separate ParaView environment once:
 
 ```bash
-pixi run python \
-  main.py /path/to/liver-in-metres.vtk /tmp/liver-case \
-  --seed 749935133 --force-factor 3 --min-force-patches 2 \
-  --fixed-area-scale 2 --fixed-margin 0.02 --force-radius-max 0.07 \
-  --relaxation-factor 0.1 --nonlinear-max-iterations 100 --prepare-only
+pixi install --locked -e visualization
 ```
 
-Omit `--prepare-only` to solve. Preparation preserves the input tetrahedra and
-vertices. It samples connected surface patches without changing their target
-areas when growth fails. Fixed and force patches have the requested clearance;
-force patches cannot share triangles. Forces become uniform Cartesian tractions
-by dividing each force vector by its patch area.
-
-For a labeled surface, run `boundary_to_vtk.py CASE/mesh.boundary surface.vtk`
-in the same Pixi environment. Labels are 1 = free, 2 = fixed, 3+ = force patches.
-
-## Checks
+Render the result:
 
 ```bash
-pixi run test
+pixi run -e visualization visualize outputs/liver/deformed.vtk
 ```
+
+`visualize.py` shows the original liver as a translucent grey surface, with
+arrows starting at sampled surface vertices. Arrow directions and lengths show
+their displacements; colors show displacement magnitude in millimetres.
+The original coordinates are recovered as `deformed coordinates - displacement`.
+At the default arrow scale of 1, each arrow tip reaches its deformed position.
+
+The script saves `displacement.png` and `displacement.pvsm` beside the input mesh.
+Open the state with ParaView's **File → Load State** to rotate the scene and
+adjust its display. On a machine with a graphical display, you can also run:
+
+```bash
+pixi run -e visualization paraview --state=outputs/liver/displacement.pvsm
+```
+
+For small displacements, enlarge the arrows without changing the simulation:
+
+```bash
+pixi run -e visualization visualize outputs/liver/deformed.vtk \
+  --glyph-scale 5 --max-glyphs 500 --output outputs/liver/vectors.png
+```
+
+The caption reports the arrow multiplier. Colors always show the actual
+displacement magnitude. Rendering works without a graphical display; opening
+the interactive ParaView application requires one.
+
+## Example
+
+The image below shows a successful deformation of liver 0, with arrows at their
+actual displacement scale. To use the same settings, supply the
+`liver_0_hcp_tet4.vtk` mesh converted to metres (the input mesh is not included):
+
+```bash
+pixi run case /path/to/liver_0_hcp_tet4_metres.vtk outputs/example \
+  --seed 1890913995 --force-factor 3 --youngs-modulus 4512.945159 \
+  --poisson-ratio 0.35 --min-force-patches 2 --fixed-area-scale 2 \
+  --fixed-margin 0.02 --force-radius-max 0.07 \
+  --relaxation-factor 0.05 --nonlinear-max-iterations 200
+
+pixi run -e visualization visualize outputs/example/deformed.vtk \
+  --glyph-scale 1 --max-glyphs 1000 --output outputs/example/displacement.png
+```
+
+![Original liver surface with displacement arrows colored by magnitude in millimetres](examples/liver_displacement.png)
+
+Grey shows the original surface. Each arrow starts on that surface and ends at
+its displaced position; the color bar gives displacement magnitude in millimetres.
+
+## Tests and attribution
+
+Run `pixi run test` for the checks in `tests/`.
+The force and patch-size sampling distributions derive from Volume2SurfaceCNN;
+its notice is retained in `VOLUME2SURFACECNN_LICENSE.txt`.

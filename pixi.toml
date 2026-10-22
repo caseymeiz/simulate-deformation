@@ -24,9 +24,20 @@ PATH = "${PIXI_PROJECT_ROOT}/.elmer/bin:${PATH}"
 
 [tasks]
 install-elmer = "bash scripts/install_elmer.sh"
-test = "python -m unittest discover -s . -v"
+test = "python -m unittest discover -s tests -v"
 batch = "python batch.py"
 case = "python main.py"
 generate-msd = "bash generate_msd.sh"
 liver18-1200 = "bash generate_msd.sh --preset liver18_1200"
 all131-20 = "bash generate_msd.sh --preset all131_20"
+
+[feature.visualization.dependencies]
+python = ">=3.12,<3.13"
+paraview = "==6.0.1"
+
+[feature.visualization.tasks]
+visualize = "pvpython --force-offscreen-rendering visualize.py"
+
+[environments]
+default = { features = [] }
+visualization = { features = ["visualization"], no-default-feature = true }
