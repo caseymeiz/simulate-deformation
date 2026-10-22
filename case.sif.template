@@ -30,7 +30,6 @@ Solver 1
   Nonlinear System Max Iterations = $nonlinear_max_iterations
   Nonlinear System Convergence Tolerance = 1e-4
   Nonlinear System Relaxation Factor = $relaxation_factor
-  Nonlinear System Linesearch = Logical False
   Steady State Convergence Tolerance = 1.0e-5
   Neo-Hookean Material = Logical True
   Calculate Stresses = Logical True
