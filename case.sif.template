@@ -1,0 +1,67 @@
+Header
+  CHECK KEYWORDS Warn
+  Mesh DB "." "."
+  Results Directory "result"
+End
+
+Simulation
+  Max Output Level = 3
+  Coordinate System = Cartesian
+  Coordinate Mapping(3) = 1 2 3
+  Simulation Type = Steady state
+  Steady State Max Iterations = 1
+  Solver Input File = case.sif
+  Post File = case.vtu
+End
+
+Solver 1
+  Equation = Non Linear elasticity
+  Procedure = "ElasticSolve" "ElasticSolver"
+  Variable = Displacement
+  Variable DOFs = 3
+  Linear System Solver = Iterative
+  Linear System Iterative Method = CG
+  Linear System Preconditioning = Cholesky2
+  Linear System Max Iterations = 500
+  Linear System Convergence Tolerance = 1e-7
+  Linear System Precondition Recompute = 1
+  Nonlinear System Newton After Iterations = 50
+  Nonlinear System Newton After Tolerance = 1.0e-3
+  Nonlinear System Max Iterations = $nonlinear_max_iterations
+  Nonlinear System Convergence Tolerance = 1e-4
+  Nonlinear System Relaxation Factor = $relaxation_factor
+  Nonlinear System Linesearch = Logical False
+  Steady State Convergence Tolerance = 1.0e-5
+  Neo-Hookean Material = Logical True
+  Calculate Stresses = Logical True
+  Calculate Strains = Logical True
+End
+
+Equation 1
+  Name = "Elasticity"
+  Active Solvers(1) = 1
+  Nonlinear Elasticity = Logical True
+End
+
+Body 1
+  Target Bodies(1) = 1
+  Equation = 1
+  Material = 1
+End
+
+Material 1
+  Name = "Liver"
+  Density = 1060.0
+  Poisson ratio = $poisson_ratio
+  Youngs modulus = $youngs_modulus
+End
+
+Boundary Condition 2
+  Target Boundaries(1) = 2
+  Name = "Fixed"
+  Displacement 1 = 0
+  Displacement 2 = 0
+  Displacement 3 = 0
+End
+
+$force_boundaries

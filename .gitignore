@@ -1,0 +1,9 @@
+.pixi/
+.elmer/
+.elmer-source/
+__pycache__/
+*.py[cod]
+outputs/
+*.aux
+*.log
+*.out

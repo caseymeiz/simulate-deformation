@@ -1,0 +1,32 @@
+[workspace]
+name = "simulate-deformation"
+version = "0.1.0"
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+
+[dependencies]
+python = ">=3.12,<3.13"
+numpy = "==2.5.1"
+vtk-base = "==9.6.2"
+tqdm = "==4.70.1"
+cmake = ">=4,<5"
+c-compiler = "*"
+cxx-compiler = "*"
+fortran-compiler = "*"
+git = ">=2.51,<3"
+ninja = ">=1.13,<2"
+libblas = ">=3.9,<4"
+liblapack = ">=3.9,<4"
+
+[activation.env]
+ELMER_HOME = "${PIXI_PROJECT_ROOT}/.elmer"
+PATH = "${PIXI_PROJECT_ROOT}/.elmer/bin:${PATH}"
+
+[tasks]
+install-elmer = "bash scripts/install_elmer.sh"
+test = "python -m unittest discover -s . -v"
+batch = "python batch.py"
+case = "python main.py"
+generate-msd = "bash generate_msd.sh"
+liver18-1200 = "bash generate_msd.sh --preset liver18_1200"
+all131-20 = "bash generate_msd.sh --preset all131_20"
