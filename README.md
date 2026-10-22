@@ -1,7 +1,7 @@
 # Liver deformation
 
-Generate a neo-Hookean deformation of one tetrahedral liver mesh with Elmer,
-then visualize the displacement in ParaView.
+Neo-Hookean liver deformation simulations with Elmer and displacement
+visualization in ParaView.
 
 ## Example
 
