@@ -3,19 +3,41 @@
 Generate a neo-Hookean deformation of one tetrahedral liver mesh with Elmer,
 then visualize the displacement in ParaView.
 
-## Setup
+## Example
 
-Install [Pixi](https://pixi.sh), then run:
+![Original liver mesh with fixed and force patches and applied-force arrows on the left, and displacement arrows on the right](examples/liver_displacement.png)
+
+Left: the original mesh, fixed patch in black, and individually colored force
+patches with resultant-force arrows (20 mm per newton). Right: each arrow starts
+on the original surface and ends at its displaced position; the color bar gives displacement magnitude in millimetres.
+
+The input mesh is included at
+[`examples/liver_0_hcp_tet4_metres.vtk`](examples/liver_0_hcp_tet4_metres.vtk).
+It is the undeformed liver 0 tetrahedral mesh from MSD-RIT Task03_Liver,
+already converted to metres. No separate mesh download or conversion is needed.
+
+Install [Pixi](https://pixi.sh), then run these commands from the repository root:
 
 ```bash
 pixi install --locked
 pixi run install-elmer
+pixi install --locked -e visualization
+
+pixi run case examples/liver_0_hcp_tet4_metres.vtk outputs/example \
+  --seed 1890913995 --force-factor 3 --youngs-modulus 4512.945159 \
+  --poisson-ratio 0.35 --min-force-patches 2 --fixed-area-scale 2 \
+  --fixed-margin 0.02 --force-radius-max 0.07 \
+  --relaxation-factor 0.05 --nonlinear-max-iterations 200
+
+pixi run -e visualization visualize outputs/example/deformed.vtk \
+  --glyph-scale 1 --max-glyphs 1000 --output outputs/example/displacement.png
 ```
 
-The repository supplies its own Python environment and builds Elmer 26.2.1
-locally. The first installation downloads the dependencies and Elmer source.
+The first installation downloads the dependencies and builds Elmer 26.2.1
+locally. The result and visualization are saved under `outputs/example/`;
+use a new output directory when rerunning the simulation.
 
-## Deform a liver
+## Deform your own liver
 
 Use a linear tetrahedral `.vtk` or `.vtu` mesh with coordinates **in metres**.
 Convert millimetre coordinates to metres before running; `main.py` does not
@@ -70,14 +92,18 @@ pixi run -e visualization visualize outputs/liver/deformed.vtk
 
 `visualize.py` produces two panels with the same camera. The left panel shows
 the original mesh with the fixed patch in black and each force patch in a
-different color. The right panel shows a translucent grey original surface with
+different color. One arrow on each force patch shows its resultant applied force,
+computed as the saved traction times the patch area. Arrow lengths are
+proportional to force magnitude, with a default scale of 20 mm per newton;
+`--force-scale` sets this scale in metres per newton. The legend lists the forces
+in newtons. The right panel shows a translucent grey original surface with
 arrows starting at sampled surface vertices. Arrow directions and lengths show
 their displacements; colors show displacement magnitude in millimetres.
 The original coordinates are recovered as `deformed coordinates - displacement`.
 At the default arrow scale of 1, each arrow tip reaches its deformed position.
 
-The script reads `mesh.boundary` and `mesh.nodes` beside the deformed mesh; use
-`--boundary /path/to/mesh.boundary` to specify another location.
+The script reads `mesh.boundary`, `mesh.nodes`, and `manifest.json` beside the
+deformed mesh; use `--boundary /path/to/mesh.boundary` to specify another location.
 It saves `displacement.png`, `displacement.pvsm`, and a labeled surface
 `displacement_boundaries.vtk` beside the input mesh. Keep the labeled surface
 with the state file so the patch panel can be reopened.
@@ -98,29 +124,6 @@ pixi run -e visualization visualize outputs/liver/deformed.vtk \
 The caption reports the arrow multiplier. Colors always show the actual
 displacement magnitude. Rendering works without a graphical display; opening
 the interactive ParaView application requires one.
-
-## Example
-
-The image below shows a successful deformation of liver 0, with arrows at their
-actual displacement scale. To use the same settings, supply the
-`liver_0_hcp_tet4.vtk` mesh converted to metres (the input mesh is not included):
-
-```bash
-pixi run case /path/to/liver_0_hcp_tet4_metres.vtk outputs/example \
-  --seed 1890913995 --force-factor 3 --youngs-modulus 4512.945159 \
-  --poisson-ratio 0.35 --min-force-patches 2 --fixed-area-scale 2 \
-  --fixed-margin 0.02 --force-radius-max 0.07 \
-  --relaxation-factor 0.05 --nonlinear-max-iterations 200
-
-pixi run -e visualization visualize outputs/example/deformed.vtk \
-  --glyph-scale 1 --max-glyphs 1000 --output outputs/example/displacement.png
-```
-
-![Original liver mesh with black fixed and colored force patches on the left, and displacement arrows on the right](examples/liver_displacement.png)
-
-Left: the original mesh, fixed patch in black, and individually colored force
-patches. Right: each arrow starts on the original surface and ends at its
-displaced position; the color bar gives displacement magnitude in millimetres.
 
 ## Tests and attribution
 

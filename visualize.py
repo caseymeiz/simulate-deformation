@@ -1,12 +1,17 @@
 """Show liver boundary patches beside displacement arrows using ParaView."""
 
 import argparse
+import json
 from math import ceil
 from pathlib import Path
 
+import numpy as np
+from paraview import servermanager
+from vtk.util.numpy_support import vtk_to_numpy
+
 from paraview.simple import (
     AssignViewToLayout, Calculator, ColorBy, CreateLayout, CreateView, ExtractSurface, GetActiveCamera,
-    GetColorTransferFunction, GetScalarBar, Glyph, OpenDataFile, Render,
+    GetColorTransferFunction, GetScalarBar, Glyph, OpenDataFile, PointSource, Render,
     RenameSource, ResetCamera, SaveScreenshot, SaveState, SetActiveView, Show, Text, Threshold, WarpByVector,
 )
 
@@ -21,6 +26,8 @@ def main():
     parser.add_argument("--output", type=Path, help="PNG path; default: displacement.png beside the mesh")
     parser.add_argument("--glyph-scale", type=float, default=1.,
                         help="Arrow length multiplier; 1 shows the actual displacement")
+    parser.add_argument("--force-scale", type=float, default=.02,
+                        help="Force arrow length in metres per newton (default: 0.02)")
     parser.add_argument("--max-glyphs", type=int, default=1000,
                         help="Approximate maximum number of surface arrows")
     args = parser.parse_args()
@@ -54,6 +61,7 @@ def main():
         panel.DepthPeeling = 1
 
     boundary_path = args.boundary or args.mesh.with_name("mesh.boundary")
+    loads = json.loads(boundary_path.with_name("manifest.json").read_text())["tractions"]
     boundary_surface = output.with_name(output.stem + "_boundaries.vtk")
     boundary_to_vtk(boundary_path, boundary_surface)
     boundaries = OpenDataFile(str(boundary_surface))
@@ -71,16 +79,27 @@ def main():
     free_display.EdgeColor = [.35, .38, .42]
     free_display.Opacity = .2
 
-    patches = Threshold(registrationName="Fixed and force patches", Input=boundaries)
+    fixed = Threshold(registrationName="Fixed patch", Input=boundaries)
+    fixed.Scalars = ["CELLS", "boundary_id"]
+    fixed.LowerThreshold = 2
+    fixed.UpperThreshold = 2
+    fixed_display = Show(fixed, patch_view)
+    fixed_display.ColorArrayName = ["POINTS", ""]
+    fixed_display.DiffuseColor = [0., 0., 0.]
+
+    patches = Threshold(registrationName="Force patches", Input=boundaries)
     patches.Scalars = ["CELLS", "boundary_id"]
-    patches.LowerThreshold = 2
+    patches.LowerThreshold = 3
     patches.UpperThreshold = last_label
     patch_display = Show(patches, patch_view)
     ColorBy(patch_display, ("CELLS", "boundary_id"))
     patch_colors = GetColorTransferFunction("boundary_id")
     patch_colors.InterpretValuesAsCategories = 1
-    patch_colors.Annotations = [value for label in range(2, last_label + 1)
-                                for value in (str(label), "Fixed" if label == 2 else f"Force {label - 2}")]
+    patch_colors.Annotations = ["2", "Fixed"] + [
+        value for load in loads for value in (
+            str(load["boundary_id"]),
+            f"Force {load['boundary_id'] - 2} ({load['force_magnitude_n']:.2f} N)")]
+    patch_display.Opacity = .45
     palette = [(0., 0., 0.), (.9, .32, .12), (0., .45, .7), (.65, .25, .65)]
     patch_colors.IndexedColors = [value for color in palette[:last_label - 1] for value in color]
     patch_display.SetScalarBarVisibility(patch_view, True)
@@ -91,11 +110,46 @@ def main():
     patch_legend.LabelColor = [.15, .15, .15]
     patch_legend.DrawNanAnnotation = 0
     patch_caption = Text()
-    patch_caption.Text = "Original mesh + boundary patches"
+    patch_caption.Text = ("Original mesh + applied forces\n"
+                          f"One resultant per patch; arrow scale: {args.force_scale * 1000:g} mm/N")
     patch_caption_display = Show(patch_caption, patch_view)
     patch_caption_display.WindowLocation = "Upper Left Corner"
     patch_caption_display.Color = [.15, .15, .15]
     patch_caption_display.FontSize = 18
+
+    # Integrate the saved uniform traction over each patch to obtain its net force.
+    boundary_data = servermanager.Fetch(boundaries)
+    points = vtk_to_numpy(boundary_data.GetPoints().GetData())
+    faces = vtk_to_numpy(boundary_data.GetPolys().GetConnectivityArray()).reshape(-1, 3)
+    labels = vtk_to_numpy(boundary_data.GetCellData().GetArray("boundary_id"))
+    for load in loads:
+        label = load["boundary_id"]
+        triangles = points[faces[labels == label]]
+        centers = triangles.mean(axis=1)
+        areas = np.linalg.norm(np.cross(triangles[:, 1] - triangles[:, 0],
+                                        triangles[:, 2] - triangles[:, 0]), axis=1) / 2
+        center = np.average(centers, axis=0, weights=areas)
+        anchor = centers[np.linalg.norm(centers - center, axis=1).argmin()]
+        location = PointSource(registrationName=f"Force {label - 2} anchor")
+        location.Center = anchor.tolist()
+        location.NumberOfPoints = 1
+        location.Radius = 0.
+        force = np.array(load["traction_pa"]) * load["area_m2"]
+        vectors = Calculator(registrationName=f"Force {label - 2} (N)", Input=location)
+        vectors.ResultArrayName = "force_n"
+        vectors.Function = " + ".join(f"({value:.17g})*{axis}" for value, axis in zip(force, ("iHat", "jHat", "kHat")))
+        force_glyph = Glyph(registrationName=f"Force {label - 2} arrow", Input=vectors, GlyphType="Arrow")
+        force_glyph.OrientationArray = ["POINTS", "force_n"]
+        force_glyph.ScaleArray = ["POINTS", "force_n"]
+        force_glyph.ScaleFactor = args.force_scale
+        force_glyph.GlyphMode = "All Points"
+        force_glyph.GlyphType.ShaftRadius = .04
+        force_glyph.GlyphType.TipRadius = .12
+        force_display = Show(force_glyph, patch_view)
+        force_display.ColorArrayName = ["POINTS", ""]
+        force_display.DiffuseColor = palette[label - 2]
+        force_display.AmbientColor = palette[label - 2]
+        force_display.Ambient = .5
 
     original_display = Show(surface, view)
     original_display.ColorArrayName = ["POINTS", ""]
