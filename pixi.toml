@@ -27,9 +27,8 @@ install-elmer = "bash scripts/install_elmer.sh"
 test = "python -m unittest discover -s tests -v"
 batch = "python batch.py"
 case = "python main.py"
-generate-msd = "bash generate_msd.sh"
-liver18-1200 = "bash generate_msd.sh --preset liver18_1200"
-all131-20 = "bash generate_msd.sh --preset all131_20"
+msd-liver18-attempts1200 = "bash generate_msd.sh --preset liver18_1200"
+msd-all-attempts20 = "bash generate_msd.sh --preset all131_20"
 
 [feature.visualization.dependencies]
 python = ">=3.12,<3.13"
